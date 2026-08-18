@@ -301,8 +301,9 @@ if 'roll_no' not in st.session_state or 'name' not in st.session_state:
                 os.remove("user_token.json")
     else:
         # No cached credentials — show the Google login button
-        from auth import _get_redirect_uri
-        st.caption(f"🔍 Debug — Redirect URI being used: `{_get_redirect_uri()}`")
+        import os as _os
+        _redirect = _os.environ.get("GOOGLE_REDIRECT_URI") or _os.environ.get("RENDER_EXTERNAL_URL") or "http://localhost:8501 (fallback)"
+        st.info(f"🔍 **Redirect URI:** `{_redirect}`  |  **RENDER_EXTERNAL_URL:** `{_os.environ.get('RENDER_EXTERNAL_URL', 'NOT SET')}`")
         st.link_button("Login with Google", get_oauth_url(), type="primary")
 
     st.write("---")
