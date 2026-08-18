@@ -21,26 +21,41 @@ TOKEN_FILE = 'user_token.json'
 
 def _get_redirect_uri() -> str:
     """
-    Dynamically detects the correct redirect URI from the incoming request,
-    so it works on any environment (Render, Streamlit Cloud, localhost)
-    without needing GOOGLE_REDIRECT_URI to be manually configured.
+    Detects the correct redirect URI for the current environment.
+    Priority order:
+    1. GOOGLE_REDIRECT_URI env var (explicit override)
+    2. RENDER_EXTERNAL_URL (automatically set by Render)
+    3. X-Forwarded-Host header (set by reverse proxies)
+    4. Host header from Streamlit context
+    5. localhost fallback for local dev
     """
-    # 1. Explicit override always wins
-    explicit = config.get_secret("GOOGLE_REDIRECT_URI")
-    if explicit:
-        return explicit
+    import os
 
-    # 2. Detect from the live Streamlit request headers (most reliable)
+    # 1. Explicit override always wins
+    explicit = os.environ.get("GOOGLE_REDIRECT_URI")
+    if explicit:
+        return explicit.rstrip("/")
+
+    # 2. Render sets this automatically — most reliable on Render
+    render_url = os.environ.get("RENDER_EXTERNAL_URL")
+    if render_url:
+        return render_url.rstrip("/")
+
+    # 3. Try X-Forwarded-Host (set by nginx/reverse proxies)
     try:
         headers = st.context.headers
+        fwd_host = headers.get("X-Forwarded-Host", "")
+        if fwd_host and not fwd_host.startswith("localhost"):
+            return f"https://{fwd_host.rstrip('/')}"
+
+        # 4. Fall back to Host header
         host = headers.get("Host", "")
-        if host:
-            scheme = "http" if (host.startswith("localhost") or host.startswith("127.")) else "https"
-            return f"{scheme}://{host}"
+        if host and not host.startswith("localhost") and not host.startswith("127."):
+            return f"https://{host.rstrip('/')}"
     except Exception:
         pass
 
-    # 3. Fallback for local dev
+    # 5. Local dev fallback
     return "http://localhost:8501"
 
 def get_oauth_url():
