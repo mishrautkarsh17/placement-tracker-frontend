@@ -19,10 +19,34 @@ SCOPES = [
 ]
 TOKEN_FILE = 'user_token.json'
 
+def _get_redirect_uri() -> str:
+    """
+    Dynamically detects the correct redirect URI from the incoming request,
+    so it works on any environment (Render, Streamlit Cloud, localhost)
+    without needing GOOGLE_REDIRECT_URI to be manually configured.
+    """
+    # 1. Explicit override always wins
+    explicit = config.get_secret("GOOGLE_REDIRECT_URI")
+    if explicit:
+        return explicit
+
+    # 2. Detect from the live Streamlit request headers (most reliable)
+    try:
+        headers = st.context.headers
+        host = headers.get("Host", "")
+        if host:
+            scheme = "http" if (host.startswith("localhost") or host.startswith("127.")) else "https"
+            return f"{scheme}://{host}"
+    except Exception:
+        pass
+
+    # 3. Fallback for local dev
+    return "http://localhost:8501"
+
 def get_oauth_url():
     params = {
         "client_id": config.GOOGLE_CLIENT_ID,
-        "redirect_uri": config.get_secret("GOOGLE_REDIRECT_URI", default="http://localhost:8501"),
+        "redirect_uri": _get_redirect_uri(),
         "response_type": "code",
         "scope": " ".join(SCOPES),
         "access_type": "offline",
@@ -35,7 +59,7 @@ def exchange_code_for_token(code):
         "code": code,
         "client_id": config.GOOGLE_CLIENT_ID,
         "client_secret": config.GOOGLE_CLIENT_SECRET,
-        "redirect_uri": config.get_secret("GOOGLE_REDIRECT_URI", default="http://localhost:8501"),
+        "redirect_uri": _get_redirect_uri(),
         "grant_type": "authorization_code"
     }
     res = requests.post("https://oauth2.googleapis.com/token", data=data)
