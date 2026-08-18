@@ -621,16 +621,17 @@ with tab4:
             """, unsafe_allow_html=True)
 
         # --- THREE-FILTER TABS ---
-        # Categorise by status
-        APPLIED_STATUSES = {"Applied", "Interviewing", "Shortlisted", "Offered", "Rejected"}
-        ELIGIBLE_STATUSES = {"Eligible"}
-        NOT_ELIGIBLE_STATUSES = {"Not Eligible"}
-
         df_apps["status"] = df_apps["status"].fillna("N/A").astype(str).str.strip()
 
-        df_applied   = df_apps[df_apps["status"].isin(APPLIED_STATUSES)]
-        df_eligible  = df_apps[df_apps["status"].isin(ELIGIBLE_STATUSES)]
-        df_ineligible = df_apps[df_apps["status"].isin(NOT_ELIGIBLE_STATUSES)]
+        # Classify based on substring to handle variations like 'Not Eligible', 'eligible', etc.
+        mask_ineligible = df_apps["status"].str.contains("Not Eligible|Not-Eligible", case=False, na=False)
+        mask_eligible = df_apps["status"].str.contains("Eligible", case=False, na=False) & ~mask_ineligible
+        
+        df_ineligible = df_apps[mask_ineligible]
+        df_eligible = df_apps[mask_eligible]
+        
+        # Everything else falls into 'Applied' bucket (Registered, Shortlisted, Offered, N/A, etc.)
+        df_applied = df_apps[~mask_eligible & ~mask_ineligible]
 
         f_tab1, f_tab2, f_tab3 = st.tabs([
             f"📝 Applied ({len(df_applied)})",
