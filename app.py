@@ -69,64 +69,184 @@ st.set_page_config(page_title="AI Placement Tracker", page_icon="🎓", layout="
 # --- CUSTOM CSS ---
 st.markdown("""
 <style>
-    /* Modern minimalist font */
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+    /* Premium Modern Font */
+    @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap');
     
     html, body, [class*="css"] {
-        font-family: 'Inter', sans-serif;
+        font-family: 'Outfit', sans-serif;
     }
     
+    /* Background & Main App */
+    .stApp {
+        background-color: #0f1115; /* Sleek dark background */
+        background-image: radial-gradient(circle at top right, rgba(78, 205, 196, 0.05), transparent 40%),
+                          radial-gradient(circle at bottom left, rgba(255, 107, 107, 0.05), transparent 40%);
+    }
+
     /* Clean up the top padding and header */
     .block-container {
         padding-top: 2rem !important;
+        max-width: 1200px;
     }
     
-    /* Style metrics to look like cards */
+    /* Premium Metric Cards with Glassmorphism */
     [data-testid="stMetric"] {
-        background-color: #1E1E2F;
-        border-radius: 12px;
-        padding: 1.2rem;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-        border: 1px solid #2D2D44;
-        transition: transform 0.2s;
+        background: rgba(30, 30, 47, 0.6);
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+        border-radius: 16px;
+        padding: 1.5rem;
+        box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.2);
+        border: 1px solid rgba(255, 255, 255, 0.05);
+        transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+        position: relative;
+        overflow: hidden;
     }
     [data-testid="stMetric"]:hover {
-        transform: translateY(-2px);
+        transform: translateY(-5px);
+        box-shadow: 0 12px 40px 0 rgba(0, 0, 0, 0.4);
+        border: 1px solid rgba(78, 205, 196, 0.3);
+    }
+    /* Shine effect on hover */
+    [data-testid="stMetric"]::before {
+        content: '';
+        position: absolute;
+        top: 0; left: -100%;
+        width: 50%; height: 100%;
+        background: linear-gradient(to right, transparent, rgba(255,255,255,0.03), transparent);
+        transform: skewX(-20deg);
+        transition: 0.5s;
+    }
+    [data-testid="stMetric"]:hover::before {
+        left: 150%;
+    }
+    [data-testid="stMetricLabel"] {
+        color: #a0a0b8 !important;
+        font-weight: 500 !important;
+        font-size: 0.95rem !important;
     }
     [data-testid="stMetricValue"] {
-        color: #4ECDC4 !important;
+        color: #fff !important;
         font-weight: 700 !important;
+        font-size: 2.2rem !important;
+        background: -webkit-linear-gradient(45deg, #4ECDC4, #556270);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
     }
     
-    /* Beautiful gradients for primary buttons */
+    /* Elegant Primary Buttons */
     .stButton > button {
-        background: linear-gradient(135deg, #FF6B6B 0%, #FF8E53 100%);
+        background: linear-gradient(135deg, #6366f1 0%, #a855f7 100%);
         color: white;
         border: none;
-        border-radius: 8px;
+        border-radius: 12px;
+        padding: 0.5rem 1.5rem;
         font-weight: 600;
-        transition: opacity 0.2s;
+        letter-spacing: 0.5px;
+        box-shadow: 0 4px 15px rgba(99, 102, 241, 0.4);
+        transition: all 0.3s ease;
     }
     .stButton > button:hover {
-        opacity: 0.9;
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(99, 102, 241, 0.6);
         color: white;
         border: none;
     }
-    
-    /* Style the daily brief expander to look premium */
-    .streamlit-expanderHeader {
-        background-color: #1E1E2F;
-        border-radius: 8px;
-        font-weight: 600;
+    .stButton > button:active {
+        transform: translateY(1px);
     }
     
-    /* Chat message styling */
+    /* Expander Styling */
+    .streamlit-expanderHeader {
+        background: rgba(30, 30, 47, 0.6) !important;
+        border-radius: 12px !important;
+        font-weight: 600;
+        border: 1px solid rgba(255, 255, 255, 0.05) !important;
+        backdrop-filter: blur(10px);
+    }
+    [data-testid="stExpander"] {
+        border: none !important;
+        background: transparent !important;
+    }
+    
+    /* Modern Chat Interface */
     [data-testid="stChatMessage"] {
-        background-color: #1a1a24;
-        border-radius: 10px;
-        padding: 1rem;
-        margin-bottom: 1rem;
-        border: 1px solid #2D2D44;
+        background: rgba(26, 26, 36, 0.8);
+        backdrop-filter: blur(10px);
+        border-radius: 16px;
+        padding: 1.2rem;
+        margin-bottom: 1.2rem;
+        border: 1px solid rgba(255, 255, 255, 0.05);
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        animation: slideUp 0.3s ease-out forwards;
+    }
+    /* Distinguish Assistant vs User */
+    [data-testid="stChatMessage"]:nth-child(even) {
+        border-left: 3px solid #6366f1;
+    }
+    [data-testid="stChatMessage"]:nth-child(odd) {
+        border-left: 3px solid #4ECDC4;
+    }
+    
+    /* Chat Input Box */
+    [data-testid="stChatInput"] {
+        border-radius: 20px !important;
+        border: 1px solid rgba(255, 255, 255, 0.1) !important;
+        background: rgba(30, 30, 47, 0.8) !important;
+    }
+    [data-testid="stChatInput"]:focus-within {
+        border-color: #6366f1 !important;
+        box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2) !important;
+    }
+    
+    /* Tabs Styling */
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 8px;
+        background-color: transparent;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    .stTabs [data-baseweb="tab"] {
+        background-color: transparent;
+        border-radius: 8px 8px 0 0;
+        padding-top: 1rem;
+        padding-bottom: 1rem;
+        font-weight: 500;
+        color: #a0a0b8;
+    }
+    .stTabs [aria-selected="true"] {
+        color: #fff;
+        border-bottom: 2px solid #6366f1;
+    }
+    
+    /* Dataframe styling */
+    [data-testid="stDataFrame"] {
+        border-radius: 12px;
+        overflow: hidden;
+        border: 1px solid rgba(255, 255, 255, 0.05);
+    }
+    
+    /* Headers Typography */
+    h1, h2, h3 {
+        color: #f8fafc;
+        letter-spacing: -0.02em;
+    }
+    h1 {
+        font-weight: 700;
+        background: linear-gradient(135deg, #fff 0%, #a0a0b8 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+    }
+    
+    /* Sidebar */
+    [data-testid="stSidebar"] {
+        background-color: rgba(15, 17, 21, 0.98);
+        border-right: 1px solid rgba(255, 255, 255, 0.05);
+    }
+    
+    /* Slide up animation */
+    @keyframes slideUp {
+        from { opacity: 0; transform: translateY(10px); }
+        to { opacity: 1; transform: translateY(0); }
     }
 </style>
 """, unsafe_allow_html=True)
