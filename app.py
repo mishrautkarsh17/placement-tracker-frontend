@@ -10,11 +10,11 @@ sys.path.insert(0, os.path.abspath('.'))
 
 from config import (
     GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REDIRECT_URI,
-    POD_AI_USERNAME, POD_AI_PASSWORD
+    POD_AI_USERNAME, POD_AI_PASSWORD, get_secret
 )
 from auth import get_user_profile, get_oauth_url, exchange_code_for_token, get_user_credentials
 
-API_URL = st.secrets.get("API_URL", "http://localhost:8000/api")
+API_URL = get_secret("API_URL", default="http://localhost:8000/api")
 
 # --- CACHED DATA FETCHERS ---
 # This prevents the app from re-fetching from the network on every button click
