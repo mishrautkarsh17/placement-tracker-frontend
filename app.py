@@ -362,6 +362,31 @@ with tab1:
 
     chat_interface()
 
+    st.divider()
+
+    # --- AI RESUME MATCHER ---
+    with st.expander("📄 AI Resume Matcher — Find Your Best Company Fits", expanded=False):
+        st.markdown("Upload your resume and the AI will analyse it against companies currently recruiting on campus.")
+        uploaded_resume = st.file_uploader("Upload Resume (PDF only)", type=["pdf"], key="resume_uploader")
+        if uploaded_resume:
+            if st.button("🔍 Find My Best Matches", use_container_width=True):
+                with st.spinner("Analysing your resume against active companies... ⏳"):
+                    try:
+                        res = requests.post(
+                            f"{API_URL}/recommend-companies",
+                            files={"resume": (uploaded_resume.name, uploaded_resume.getvalue(), "application/pdf")}
+                        )
+                        if res.status_code == 200:
+                            recommendation = res.json().get("recommendation", "No recommendations generated.")
+                            st.session_state["resume_recommendation"] = recommendation
+                        else:
+                            st.error(f"Backend error: {res.json().get('detail', 'Unknown error')}")
+                    except Exception as e:
+                        st.error(f"Failed to connect to backend: {e}")
+
+        if "resume_recommendation" in st.session_state:
+            st.markdown(st.session_state["resume_recommendation"])
+
 with tab2:
     st.header("Campus Placement Calendar")
     
@@ -455,7 +480,7 @@ with tab3:
 
 with tab4:
     st.header("🏢 Company Hub & Applications")
-    
+
     # Company Knowledge Base Search
     st.subheader("Company Insights")
     search_company = st.text_input("Search for a company's historical placement pattern (e.g., Adobe, Microsoft)")
@@ -474,21 +499,19 @@ with tab4:
                 st.warning(f"No historical insights found for {search_company} in the knowledge base.")
         except Exception as e:
             st.error(f"Failed to fetch company insights: {e}")
-            
+
     st.divider()
     st.subheader("My Applications")
-    
+
     # Load cached personal applications from API
     df_apps = fetch_applications(roll_no)
-    
+
     col1, col2 = st.columns([3, 1])
-    
     with col1:
         if not df_apps.empty:
             st.caption(f"Found {len(df_apps)} synced applications.")
         else:
             st.caption("No applications found in cache.")
-            
     with col2:
         if st.button("🔄 Sync pod.ai Data", use_container_width=True):
             if POD_AI_USERNAME and POD_AI_PASSWORD:
@@ -511,14 +534,13 @@ with tab4:
                         st.error(f"Sync failed: {e}")
             else:
                 st.session_state['show_sync_modal'] = True
-            
+
     if st.session_state.get('show_sync_modal', False):
         st.warning("Playwright Scraping Required")
         st.write("To sync your latest applications, please enter your pod.ai credentials. These are used live and never stored.")
         with st.form("sync_form"):
             pod_email = st.text_input("pod.ai Email", value="")
             pod_pwd = st.text_input("pod.ai Password", type="password")
-            
             if st.form_submit_button("Run Sync"):
                 if pod_email and pod_pwd:
                     with st.spinner("Scraping pod.ai... This may take a minute."):
@@ -544,19 +566,75 @@ with tab4:
                     st.error("Credentials required.")
 
     st.divider()
-    
+
     if df_apps.empty:
         st.info("No applications to show. Click Sync to fetch them!")
     else:
-        # Timeline View
-        for idx, row in df_apps.iterrows():
-            with st.container():
-                col_a, col_b = st.columns([3, 1])
-                with col_a:
-                    st.markdown(f"#### {row['company_name']}")
-                    st.markdown(f"**{row['offer_type']}**")
-                with col_b:
-                    st.metric("CTC", row['ctc'])
-                    
-                st.info(f"Status: **{row.get('status', 'N/A')}**")
-                st.divider()
+        # --- STATUS BADGE HELPER ---
+        STATUS_COLORS = {
+            "Interviewing": ("#6366f1", "🎯"),
+            "Offered":      ("#22c55e", "🎉"),
+            "Shortlisted":  ("#f59e0b", "⭐"),
+            "Applied":      ("#3b82f6", "📝"),
+            "Rejected":     ("#ef4444", "✖️"),
+            "N/A":          ("#6b7280", "❓"),
+        }
+
+        def render_status_badge(status):
+            color, icon = STATUS_COLORS.get(status, ("#6b7280", "❓"))
+            return f'<span style="background:{color}22; color:{color}; border:1px solid {color}66; padding:3px 10px; border-radius:99px; font-size:0.8rem; font-weight:600">{icon} {status}</span>'
+
+        def render_app_card(row):
+            status = row.get('status', 'N/A')
+            badge = render_status_badge(status)
+            st.markdown(f"""
+            <div style="background:rgba(30,30,47,0.6); border:1px solid rgba(255,255,255,0.06); border-radius:16px; padding:1.2rem 1.5rem; margin-bottom:1rem; backdrop-filter:blur(10px);">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <div>
+                        <div style="font-size:1.1rem; font-weight:700; color:#f8fafc;">{row.get('company_name', 'Unknown')}</div>
+                        <div style="color:#a0a0b8; font-size:0.9rem; margin-top:2px;">{row.get('offer_type', 'N/A')} &nbsp;•&nbsp; CTC: <b style='color:#4ECDC4'>{row.get('ctc', 'N/A')}</b></div>
+                    </div>
+                    <div>{badge}</div>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+
+        # --- THREE-FILTER TABS ---
+        # Categorise by status
+        APPLIED_STATUSES = {"Applied", "Interviewing", "Shortlisted", "Offered", "Rejected"}
+        ELIGIBLE_STATUSES = {"Eligible"}
+        NOT_ELIGIBLE_STATUSES = {"Not Eligible"}
+
+        df_apps["status"] = df_apps["status"].fillna("N/A").astype(str).str.strip()
+
+        df_applied   = df_apps[df_apps["status"].isin(APPLIED_STATUSES)]
+        df_eligible  = df_apps[df_apps["status"].isin(ELIGIBLE_STATUSES)]
+        df_ineligible = df_apps[df_apps["status"].isin(NOT_ELIGIBLE_STATUSES)]
+
+        f_tab1, f_tab2, f_tab3 = st.tabs([
+            f"📝 Applied ({len(df_applied)})",
+            f"✅ Eligible ({len(df_eligible)})",
+            f"❌ Not Eligible ({len(df_ineligible)})",
+        ])
+
+        with f_tab1:
+            if df_applied.empty:
+                st.info("No applied companies. Click Sync to fetch your applications!")
+            else:
+                for _, row in df_applied.iterrows():
+                    render_app_card(row)
+
+        with f_tab2:
+            if df_eligible.empty:
+                st.info("No eligible companies found. Sync pod.ai to fetch your eligibility data.")
+            else:
+                for _, row in df_eligible.iterrows():
+                    render_app_card(row)
+
+        with f_tab3:
+            if df_ineligible.empty:
+                st.info("No ineligible companies found.")
+            else:
+                for _, row in df_ineligible.iterrows():
+                    render_app_card(row)
+
