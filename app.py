@@ -253,38 +253,56 @@ st.markdown("""
 
 
 # --- USER PROFILE ---
-# Since you are the only user running this locally, we can skip OAuth completely!
 if 'roll_no' not in st.session_state or 'name' not in st.session_state:
     st.title("🎓 Welcome to Placement Tracker")
     st.write("Please authenticate with your IIITD Google account to securely load your dashboard.")
-    
+
     # Check for OAuth callback code in URL
     if "code" in st.query_params:
         with st.spinner("Authenticating..."):
             if exchange_code_for_token(st.query_params["code"]):
                 st.query_params.clear()
+                # After exchange, fall through to show the confirm screen
             else:
                 st.error("Authentication failed. Please try again.")
-                
-    # If we have valid credentials, fetch profile
+
+    # Check if we have a cached token
     creds = get_user_credentials()
     if creds and creds.valid:
-        with st.spinner("Loading profile..."):
-            profile = get_user_profile()
-            if profile:
-                st.session_state['name'] = profile.get("name", "Unknown")
-                email = profile.get("email", "")
-                
-                # Extract roll number from email (e.g., utkarsh23571@iiitd.ac.in -> 23571)
-                roll_no = "".join(filter(str.isdigit, email))
-                st.session_state['roll_no'] = roll_no
-                st.rerun()
-            else:
-                st.error("Could not fetch profile information.")
+        # Fetch profile to show WHO is cached — don't auto-login silently
+        profile = get_user_profile()
+        if profile:
+            cached_email = profile.get("email", "")
+            cached_name = profile.get("name", "")
+
+            # Only auto-accept if it's an IIITD account
+            is_iiitd = cached_email.endswith("@iiitd.ac.in")
+
+            st.success(f"✅ Google account detected: **{cached_name}** ({cached_email})")
+
+            col_confirm, col_switch = st.columns(2)
+            with col_confirm:
+                if st.button("✅ Continue as this account", use_container_width=True, type="primary"):
+                    roll_no = "".join(filter(str.isdigit, cached_email))
+                    st.session_state['name'] = cached_name
+                    st.session_state['roll_no'] = roll_no
+                    st.rerun()
+            with col_switch:
+                if st.button("🔄 Switch Account", use_container_width=True):
+                    # Delete the cached token so next login goes through Google account chooser
+                    import os
+                    if os.path.exists("user_token.json"):
+                        os.remove("user_token.json")
+                    st.rerun()
+        else:
+            st.error("Could not fetch profile information. Please try logging in again.")
+            import os
+            if os.path.exists("user_token.json"):
+                os.remove("user_token.json")
     else:
-        # Show login button
+        # No cached credentials — show the Google login button
         st.link_button("Login with Google", get_oauth_url(), type="primary")
-                
+
     st.write("---")
     st.write("If Google login fails, you can manually enter your details below (for testing only):")
     with st.form("profile_form"):
