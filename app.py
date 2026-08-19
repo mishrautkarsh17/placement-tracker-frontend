@@ -472,6 +472,33 @@ with tab2:
 with tab3:
     st.header("Placement Analytics")
     
+    col_btn1, col_btn2 = st.columns(2)
+    with col_btn1:
+        if st.button("🔄 Sync Global Offers & CTC", use_container_width=True, type="primary"):
+            with st.spinner("Syncing offers from emails and pod.ai..."):
+                try:
+                    req = requests.post(f"{API_URL}/sync-global-offers")
+                    if req.status_code == 200:
+                        st.success("Successfully synced global offers and CTC!")
+                        st.rerun()
+                    else:
+                        st.error(f"Sync failed: {req.text}")
+                except Exception as e:
+                    st.error(f"Sync failed: {e}")
+                    
+    with col_btn2:
+        if st.button("🗑️ Clear Sheet Data & Reset Cron", use_container_width=True):
+            with st.spinner("Clearing sheets and resetting cron to 1st July..."):
+                try:
+                    req = requests.post(f"{API_URL}/clear-offers")
+                    if req.status_code == 200:
+                        st.success("Successfully cleared sheets and reset cron start date!")
+                        st.rerun()
+                    else:
+                        st.error(f"Failed to clear sheets: {req.text}")
+                except Exception as e:
+                    st.error(f"Failed to clear sheets: {e}")
+                    
     analytics_data = fetch_analytics()
     
     col1, col2 = st.columns(2)
