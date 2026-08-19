@@ -347,7 +347,10 @@ with tab1:
     
     with st.expander("📝 Your Daily Placement Brief", expanded=True):
         brief = fetch_daily_brief(roll_no)
-        st.markdown(brief)
+        if "I'm having trouble" in brief or "Rate Limit" in brief:
+            st.error(f"⚠️ **AI Unavailable:** {brief}")
+        else:
+            st.markdown(brief)
                 
     st.divider()
     
@@ -378,7 +381,10 @@ with tab1:
                         reply = res.json().get("reply", "Sorry, I couldn't process that.")
                     except Exception as e:
                         reply = f"Error connecting to backend: {e}"
-                    st.markdown(reply)
+            if "I'm having trouble" in reply or "Rate Limit" in reply:
+                st.error(f"⚠️ **AI Unavailable:** {reply}")
+            else:
+                st.markdown(reply)
             st.session_state.messages.append({"role": "assistant", "content": reply})
 
     chat_interface()
@@ -406,7 +412,11 @@ with tab1:
                         st.error(f"Failed to connect to backend: {e}")
 
         if "resume_recommendation" in st.session_state:
-            st.markdown(st.session_state["resume_recommendation"])
+            rec = st.session_state["resume_recommendation"]
+            if "I'm having trouble" in rec or "Rate Limit" in rec:
+                st.error(f"⚠️ **AI Unavailable:** {rec}")
+            else:
+                st.markdown(rec)
 
 with tab2:
     st.header("Campus Placement Calendar")
@@ -475,16 +485,26 @@ with tab3:
     col_btn1, col_btn2 = st.columns(2)
     with col_btn1:
         if st.button("🔄 Sync Global Offers & CTC", use_container_width=True, type="primary"):
-            with st.spinner("Syncing offers from emails and pod.ai..."):
+            with st.spinner("Step 1/2: Syncing offers from emails..."):
                 try:
-                    req = requests.post(f"{API_URL}/sync-global-offers")
+                    req = requests.post(f"{API_URL}/sync-email-offers")
                     if req.status_code == 200:
-                        st.success("Successfully synced global offers and CTC!")
-                        st.rerun()
+                        st.success("✅ Emails synced successfully!")
                     else:
-                        st.error(f"Sync failed: {req.text}")
+                        st.error(f"Email sync failed: {req.text}")
                 except Exception as e:
-                    st.error(f"Sync failed: {e}")
+                    st.error(f"Email sync failed: {e}")
+                    
+            with st.spinner("Step 2/2: Starting CTC Enrichment from pod.ai..."):
+                try:
+                    ctc_req = requests.post(f"{API_URL}/sync-ctc-enrichment")
+                    if ctc_req.status_code == 200:
+                        st.success("✅ CTC Enrichment has started in the background! (This process takes a few minutes. Check back later to see the updated CTCs).")
+                        st.cache_data.clear()
+                    else:
+                        st.error(f"CTC sync failed to start: {ctc_req.text}")
+                except Exception as e:
+                    st.error(f"CTC sync failed: {e}")
                     
     with col_btn2:
         if st.button("🗑️ Clear Sheet Data & Reset Cron", use_container_width=True):
