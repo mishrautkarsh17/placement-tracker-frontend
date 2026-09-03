@@ -582,6 +582,7 @@ with tab3:
             
         with st.expander("Detailed Branch Performance Summary", expanded=True):
             st.caption("Total student cohort versus placed count, offers tally, and placement percentages")
+            df_branch = df_branch.drop(columns=['intern_only'], errors='ignore')
             
             st.dataframe(
                 df_branch,
@@ -590,7 +591,6 @@ with tab3:
                     "full_name": "Full Program Name",
                     "total_students": st.column_config.NumberColumn("Total Students", format="%d"),
                     "placed_students": st.column_config.NumberColumn("Placed Students", format="%d"),
-                    "intern_only": st.column_config.NumberColumn("Intern Only", format="%d"),
                     "offers_count": st.column_config.NumberColumn("Offers Count", format="%d"),
                     "firms": st.column_config.NumberColumn("Firms", format="%d"),
                     "placement_rate": st.column_config.ProgressColumn(
