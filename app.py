@@ -301,9 +301,7 @@ if 'roll_no' not in st.session_state or 'name' not in st.session_state:
                 os.remove("user_token.json")
     else:
         # No cached credentials — show the Google login button
-        import os as _os
-        _redirect = _os.environ.get("GOOGLE_REDIRECT_URI") or _os.environ.get("RENDER_EXTERNAL_URL") or "http://localhost:8501 (fallback)"
-        st.info(f"🔍 **Redirect URI:** `{_redirect}`  |  **RENDER_EXTERNAL_URL:** `{_os.environ.get('RENDER_EXTERNAL_URL', 'NOT SET')}`")
+
         st.link_button("Login with Google", get_oauth_url(), type="primary")
 
     st.write("---")
@@ -439,6 +437,7 @@ with tab2:
                     st.error(f"Sync failed: {e}")
     
     df_cal = fetch_calendar()
+    df_apps = fetch_applications(roll_no)
     
     if df_cal.empty:
         st.info("No calendar data available.")
@@ -446,38 +445,65 @@ with tab2:
         # Strip whitespace from column names (sheet has trailing spaces like 'Date ', 'Company ')
         df_cal.columns = df_cal.columns.str.strip()
         
-        # Today's Highlights
-        st.subheader("Today's Events")
-        today_dt = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        filter_my_apps = st.checkbox("🎯 Show only companies I've applied to / am eligible for", value=True)
         
-        if 'Date' in df_cal.columns:
-            # Clean up date column values: strip whitespace
-            df_cal['Date'] = df_cal['Date'].astype(str).str.strip()
-            
-            # Parse dates trying multiple formats
-            parsed = pd.to_datetime(df_cal['Date'], format='%d-%m-%Y', errors='coerce')
-            # Try alternate format if some failed
-            mask_na = parsed.isna()
-            if mask_na.any():
-                parsed[mask_na] = pd.to_datetime(df_cal.loc[mask_na, 'Date'], format='%d/%m/%Y', errors='coerce')
-            df_cal['parsed_date'] = parsed
-            
-            # Today's events
-            today_events = df_cal[df_cal['parsed_date'] == today_dt]
-            if not today_events.empty:
-                for _, row in today_events.iterrows():
-                    st.error(f"🚨 **{row.get('Company', 'Unknown')}** - {row.get('Process', '')} at {row.get('Test Start Time', '')} / {row.get('PPT Start Time', '')}")
-            else:
-                st.success("No events scheduled for today.")
-        
-            st.divider()
-        
-            # Filter: only show today and future events
-            df_cal_future = df_cal[df_cal['parsed_date'] >= today_dt].drop(columns=['parsed_date'])
-            st.dataframe(df_cal_future, width='stretch')
+        if filter_my_apps:
+            if df_apps.empty:
+                st.info("⚠️ You haven't synced your applications yet. Showing the full calendar. Head to the **Company Hub** tab to sync your data!")
+            elif 'Company' in df_cal.columns and 'company_name' in df_apps.columns:
+                import re
+                def normalize(name):
+                    return re.sub(r'[^a-z0-9]', '', str(name).lower())
+                
+                my_companies = df_apps['company_name'].apply(normalize).unique()
+                my_companies = [c for c in my_companies if len(c) > 1]
+                
+                def is_match(c):
+                    c_norm = normalize(c)
+                    if len(c_norm) < 2: return False
+                    for mc in my_companies:
+                        if mc in c_norm or c_norm in mc:
+                            return True
+                    return False
+                
+                mask = df_cal['Company'].apply(is_match)
+                df_cal = df_cal[mask]
+
+        if df_cal.empty:
+            st.success("No scheduled events found for your applied companies. 🎉")
         else:
-            st.divider()
-            st.dataframe(df_cal, width='stretch')
+            # Today's Highlights
+            st.subheader("Today's Events")
+            today_dt = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+            
+            if 'Date' in df_cal.columns:
+                # Clean up date column values: strip whitespace
+                df_cal['Date'] = df_cal['Date'].astype(str).str.strip()
+                
+                # Parse dates trying multiple formats
+                parsed = pd.to_datetime(df_cal['Date'], format='%d-%m-%Y', errors='coerce')
+                # Try alternate format if some failed
+                mask_na = parsed.isna()
+                if mask_na.any():
+                    parsed[mask_na] = pd.to_datetime(df_cal.loc[mask_na, 'Date'], format='%d/%m/%Y', errors='coerce')
+                df_cal['parsed_date'] = parsed
+                
+                # Today's events
+                today_events = df_cal[df_cal['parsed_date'] == today_dt]
+                if not today_events.empty:
+                    for _, row in today_events.iterrows():
+                        st.error(f"🚨 **{row.get('Company', 'Unknown')}** - {row.get('Process', '')} at {row.get('Test Start Time', '')} / {row.get('PPT Start Time', '')}")
+                else:
+                    st.success("No events scheduled for today.")
+            
+                st.divider()
+            
+                # Filter: only show today and future events
+                df_cal_future = df_cal[df_cal['parsed_date'] >= today_dt].drop(columns=['parsed_date'])
+                st.dataframe(df_cal_future, width='stretch')
+            else:
+                st.divider()
+                st.dataframe(df_cal, width='stretch')
 
 with tab3:
     st.header("Placement Analytics")
@@ -520,31 +546,67 @@ with tab3:
                     st.error(f"Failed to clear sheets: {e}")
                     
     analytics_data = fetch_analytics()
+    overall = analytics_data.get("overall", {})
+    branch_data = analytics_data.get("branch_data", [])
     
-    col1, col2 = st.columns(2)
-    col1.metric("Total Offers Issued", analytics_data.get("total_offers", 0))
-    col2.metric("Companies Hiring", analytics_data.get("companies_hiring", 0))
+    st.markdown("### Overall Metrics")
+    m1, m2 = st.columns(2)
+    m1.metric("TOTAL STUDENTS", overall.get("total_students", 0), "Across all branches", delta_color="off")
+    m2.metric("PLACED STUDENTS", overall.get("placed_students", 0), "Full-time / PPO / Intern+FT", delta_color="off")
+    
+    m3, m4 = st.columns(2)
+    m3.metric("PLACEMENT RATE", f"{overall.get('placement_rate', 0)}%", delta_color="off")
+    m4.metric("TOTAL OFFERS", overall.get("total_offers", 0), "Total job & internship offers", delta_color="off")
+    
+    st.metric("RECRUITING COMPANIES", f"{overall.get('companies_hiring', 0)} firms", f"Top Branch: {overall.get('top_branch', 'N/A')}", delta_color="off")
     
     st.divider()
     
-    offers_by_role = analytics_data.get("offers_by_role", {})
-    if offers_by_role:
-        st.subheader("Offer Types")
-        role_df = pd.DataFrame(list(offers_by_role.items()), columns=["offer_type", "count"])
-        role_chart = alt.Chart(role_df).mark_arc().encode(
-            theta="count",
-            color="offer_type",
-            tooltip=["offer_type", "count"]
-        ).properties(height=300)
-        st.altair_chart(role_chart, use_container_width=True)
+    if branch_data:
+        st.markdown("### 📊 Branch Comparison: Total Students vs Placed Students")
+        st.caption("Paired side-by-side bars for every branch.")
         
-    st.divider()
-    st.subheader("All Global Offers")
-    df_offers = fetch_offers()
-    if df_offers.empty:
-        st.info("No offers recorded yet.")
-    else:
-        st.dataframe(df_offers, use_container_width=True)
+        df_branch = pd.DataFrame(branch_data)
+        
+        df_melt = df_branch.melt(id_vars=["branch"], value_vars=["total_students", "placed_students"], var_name="Type", value_name="Count")
+        df_melt["Type"] = df_melt["Type"].map({"total_students": "Total Students", "placed_students": "Placed Students"})
+        
+        chart = alt.Chart(df_melt).mark_bar(cornerRadiusTopLeft=4, cornerRadiusTopRight=4).encode(
+            x=alt.X("Type:N", title=None, axis=alt.Axis(labels=False, ticks=False)),
+            y=alt.Y("Count:Q", title="Count (Students)"),
+            color=alt.Color("Type:N", title="", scale=alt.Scale(domain=["Total Students", "Placed Students"], range=["#6366f1", "#10b981"])),
+            column=alt.Column("branch:N", title=None, header=alt.Header(labelOrient="bottom", labelFontSize=12, labelFontWeight="bold")),
+            tooltip=["branch", "Type", "Count"]
+        ).properties(width=80, height=350).configure_view(stroke="transparent")
+        
+        st.altair_chart(chart, use_container_width=False)
+        
+        st.divider()
+        
+        st.markdown("### Detailed Branch Performance Summary")
+        st.caption("Total student cohort versus placed count, offers tally, and placement percentages")
+        
+        st.dataframe(
+            df_branch,
+            column_config={
+                "branch": "Branch",
+                "full_name": "Full Program Name",
+                "total_students": st.column_config.NumberColumn("Total Students", format="%d"),
+                "placed_students": st.column_config.NumberColumn("Placed Students", format="%d"),
+                "intern_only": st.column_config.NumberColumn("Intern Only", format="%d"),
+                "offers_count": st.column_config.NumberColumn("Offers Count", format="%d"),
+                "firms": st.column_config.NumberColumn("Firms", format="%d"),
+                "placement_rate": st.column_config.ProgressColumn(
+                    "Placement Rate",
+                    help="Percentage of placed students",
+                    format="%.1f%%",
+                    min_value=0,
+                    max_value=100,
+                ),
+            },
+            hide_index=True,
+            use_container_width=True
+        )
 
 with tab4:
     st.header("🏢 Company Hub & Applications")
